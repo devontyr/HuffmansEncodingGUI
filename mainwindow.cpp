@@ -288,7 +288,7 @@ void MainWindow::decodeFileButtonPushed() {
     }
 
     //prompt user for output filename
-    QString outName = QFileDialog::getSaveFileName(this, "select file to save to", "", ".decodehuf");
+    QString outName = QFileDialog::getSaveFileName(this, "select file to save to");
     if (outName.isEmpty()) return;
 
     QFile outFile(outName);
