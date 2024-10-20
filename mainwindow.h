@@ -28,6 +28,8 @@ class MainWindow : public QMainWindow
 
     QVector<QString> charCodeToEncodingStrings;
 
+    void buildTableRow(int iPos);
+
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();

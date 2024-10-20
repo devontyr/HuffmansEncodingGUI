@@ -3,7 +3,7 @@
 #include <QtWidgets>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), byteFrequencies(256, 0), charCodeToEncodingStrings(256, "") {
+    : QMainWindow(parent), byteFrequencies(256, 0), charCodeToEncodingStrings(256, ""), charCol(0), symbolCol(1), freqCol(2), huffmansCol(3) {
 
     setWindowTitle("huffman's encoding files");
 
@@ -31,6 +31,8 @@ MainWindow::MainWindow(QWidget *parent)
     buttonLayout->addWidget(decodeFile);
     connect(decodeFile, &QPushButton::clicked, this, &MainWindow::decodeFileButtonPushed);
 
+    encodeFile->setEnabled(false);
+
     //add the table widget to the bottom
     dataTable = new QTableWidget();
     int nCols = 4; int nRows = 256;
@@ -48,6 +50,25 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() {
     QSettings settings("DRT", "huffmans");
     settings.value("lastDirectory", lastDir);
+}
+
+void MainWindow::buildTableRow(int iPos) {
+    //char code (which byte)
+    QTableWidgetItem *charCode = new QTableWidgetItem();
+    charCode->setData(Qt::DisplayRole, iPos);
+    dataTable->setItem(iPos, charCol, charCode);
+
+    //symbol
+    QString charSymbol(1, QChar(iPos));
+    if (QChar(iPos).isPrint()) {
+        QTableWidgetItem *symbol = new QTableWidgetItem(charSymbol);
+        dataTable->setItem(iPos, symbolCol, symbol);
+    }
+
+    //frequency
+    QTableWidgetItem *freq = new QTableWidgetItem();
+    freq->setData(Qt::DisplayRole, byteFrequencies[iPos]);
+    dataTable->setItem(iPos, freqCol, freq);
 }
 
 //prompt user for a file and open it (read in the file)
@@ -73,35 +94,18 @@ void MainWindow::loadFileButtonPushed() {
     }
     inFile.close();
 
-    dataTable->clearContents();
     //loop through the bytes to find freqencies
     orgFileSize = byteArray.size();
     for (int iByte = 0; iByte < orgFileSize; ++iByte) {
         ++byteFrequencies[(unsigned char)byteArray[iByte]];
     }
 
-    charCol = 0; symbolCol = 1; freqCol = 2; huffmansCol = 3;
-    for (int iPos = 0; iPos < 256; ++iPos) {
-        //char code (which byte)
-        QTableWidgetItem *charCode = new QTableWidgetItem();
-        charCode->setData(Qt::DisplayRole, iPos);
-        dataTable->setItem(iPos, charCol, charCode);
-
-        //symbol
-        QString charSymbol(1, QChar(iPos));
-        if (QChar(iPos).isPrint()) {
-            QTableWidgetItem *symbol = new QTableWidgetItem(charSymbol);
-            dataTable->setItem(iPos, symbolCol, symbol);
-        }
-
-        //frequency
-        QTableWidgetItem *freq = new QTableWidgetItem();
-        freq->setData(Qt::DisplayRole, byteFrequencies[iPos]);
-        dataTable->setItem(iPos, freqCol, freq);
-    }
-
+    dataTable->clearContents();
+    for (int iPos = 0; iPos < 256; ++iPos) buildTableRow(iPos);
     dataTable->sortByColumn(freqCol, Qt::DescendingOrder);
     dataTable->hideColumn(huffmansCol);
+
+    encodeFile->setEnabled(true);
 }
 
 void MainWindow::encodeFileButtonPushed() {
@@ -176,7 +180,7 @@ void MainWindow::encodeFileButtonPushed() {
     dataTable->sortByColumn(freqCol, Qt::DescendingOrder);
 
     //prompt for an output file name, and save encoding scheme/binary huffman encoding there
-    QString outName = QFileDialog::getSaveFileName(this, "select file to save to", "", ".encodehuf");
+    QString outName = QFileDialog::getSaveFileName(this, "select file to save to");
     if (outName.isEmpty()) return;
 
     QFile outFile(outName);
@@ -232,7 +236,7 @@ void MainWindow::decodeFileButtonPushed() {
 
     //need length of final to know how many bits to read out of newByteArray
     QString stringToDecode = "";
-    for (int iByte=0; iByte<encodedStringLen; ++iByte) {
+    for (int iByte=0; iByte<newByteArray.size(); ++iByte) {
         int width = qMin(encodedStringLen, 8);
         stringToDecode.append(QString::number(((unsigned char)newByteArray[iByte]), 2).rightJustified(width, '0'));
         encodedStringLen -= width;
@@ -248,13 +252,13 @@ void MainWindow::decodeFileButtonPushed() {
     //find the char code by looking up in the dictionary
     QString current = "";
     for (int iByte=0; iByte<stringToDecode.length(); ++iByte) {
+        current.append(stringToDecode[iByte]);
         if (decodeDict.contains(current)) {
             //add it to the decoded QByteArray
             decodedData.append(decodeDict.value(current));
             //update the current string to nothing
             current = "";
         }
-        current.append(stringToDecode[iByte]);
     }
 
     //fill out the table with its contents
@@ -267,24 +271,11 @@ void MainWindow::decodeFileButtonPushed() {
             continue;
         }
         dataTable->showRow(iChar); //show the row you fill
+        buildTableRow(iChar);
 
-        //char code (which byte)
-        QTableWidgetItem *charCode = new QTableWidgetItem();
-        charCode->setData(Qt::DisplayRole, iChar);
-        dataTable->setItem(iChar, charCol, charCode);
-
-        //symbol
-        QString charSymbol(1, QChar(iChar)); 
-        if (QChar(iChar).isPrint()) {
-            QTableWidgetItem *symbol = new QTableWidgetItem(charSymbol);
-            dataTable->setItem(iChar, symbolCol, symbol);
-        }
-
-        //encoding
+        //encoding column
         QTableWidgetItem *encoding = new QTableWidgetItem(charCodeToEncodingStrings[iChar]);
         dataTable->setItem(iChar, huffmansCol, encoding);
-
-        //qDebug() << "char code:" << iChar << "symbol:" << QChar(iChar) << "encoding" << charCodeToEncodingStrings[iChar];
     }
 
     //prompt user for output filename
